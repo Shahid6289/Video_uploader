@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
-
 class UploadVideo extends StatefulWidget {
   const UploadVideo({Key? key}) : super(key: key);
 
@@ -16,14 +15,39 @@ class UploadVideo extends StatefulWidget {
 
 class _UploadVideoState extends State<UploadVideo> {
 
+   @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.network(
+        'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4')
+      ..initialize().then((_) {
+        // Ensure the first frame is shown after the video is initialized, even before the play button has been pressed.
+        setState(() {});
+      });
+  }
   
   late VideoPlayerController _controller;
+  late Future<void> _initializeVideoPlayerFuture;
   File? _videoFile;
   late String _imagePath;
   final ImagePicker _picker = ImagePicker();
   double _progressValue = 0;
   bool showSpinner = false ;
 
+   Future<void> _pickVideo() async {
+    final pickedFile = await ImagePicker().getVideo(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      _controller = VideoPlayerController.file(File(pickedFile.path));
+      _initializeVideoPlayerFuture = _controller.initialize();
+      _controller.setLooping(true);
+    }
+  }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
   
   Future<void> _uploadVideo(File videoFile) async {
   var request = http.MultipartRequest('POST', Uri.parse('https://fakestoreapi.com/products'));
@@ -38,7 +62,6 @@ class _UploadVideoState extends State<UploadVideo> {
     print('failed to upload video');  // Video upload failed
   }
 }
-
 
   void setProgress(double value) async {
     setState(() {
@@ -66,6 +89,7 @@ class _UploadVideoState extends State<UploadVideo> {
                     height: 52,
                   ),
                   MaterialButton(
+                    
                     color: primaryColor,
                     child: const Text(
                       "Pick Video from Gallery",
