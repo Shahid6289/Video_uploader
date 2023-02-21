@@ -1,10 +1,10 @@
 import 'dart:developer';
-import 'dart:io';
 import 'package:uploader_example/main.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:universal_io/io.dart';
 
 class UploadVideo extends StatefulWidget {
   const UploadVideo({Key? key}) : super(key: key);
@@ -14,8 +14,7 @@ class UploadVideo extends StatefulWidget {
 }
 
 class _UploadVideoState extends State<UploadVideo> {
-
-   @override
+  @override
   void initState() {
     super.initState();
     _controller = VideoPlayerController.network(
@@ -25,17 +24,18 @@ class _UploadVideoState extends State<UploadVideo> {
         setState(() {});
       });
   }
-  
+
   late VideoPlayerController _controller;
   late Future<void> _initializeVideoPlayerFuture;
-  File? _videoFile;
+  late File _videoFile;
   late String _imagePath;
   final ImagePicker _picker = ImagePicker();
   double _progressValue = 0;
-  bool showSpinner = false ;
+  bool showSpinner = false;
 
-   Future<void> _pickVideo() async {
-    final pickedFile = await ImagePicker().getVideo(source: ImageSource.gallery);
+  Future<void> _pickVideo() async {
+    final pickedFile =
+        await ImagePicker().getVideo(source: ImageSource.gallery);
 
     if (pickedFile != null) {
       _controller = VideoPlayerController.file(File(pickedFile.path));
@@ -43,25 +43,49 @@ class _UploadVideoState extends State<UploadVideo> {
       _controller.setLooping(true);
     }
   }
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
-  
-  Future<void> _uploadVideo(File videoFile) async {
-  var request = http.MultipartRequest('POST', Uri.parse('https://fakestoreapi.com/products'));
-  request.files.add(await http.MultipartFile.fromPath('video', videoFile.path));
-  var response = await request.send();
-  if (response.statusCode == 200) {
-    setState(() {
-        showSpinner = false ;   // Video uploaded successfully
-      });
-    
-  } else {
-    print('failed to upload video');  // Video upload failed
+
+//   Future<void> _uploadVideo(File videoFile) async {
+//   var request = http.MultipartRequest('POST', Uri.parse('https://fakestoreapi.com/products'));
+//   request.files.add(await http.MultipartFile.fromPath('video', videoFile.path));
+//   var response = await request.send();
+//   if (response.statusCode == 200) {
+//     setState(() {
+//         showSpinner = false ;   // Video uploaded successfully
+//       });
+
+//   } else {
+//     print('failed to upload video');  // Video upload failed
+//   }
+// }
+
+  // Function to initialize the video player controller
+  Future<void> _initializeVideoPlayerController() async {
+    _controller = VideoPlayerController.file(_videoFile);
+    await _controller.initialize();
+    setState(() {});
   }
-}
+
+  Future<void> _uploadVideo() async {
+    if (_videoFile == null) {
+      return;
+    }
+    final videoBytes = await _videoFile!.readAsBytes();
+    final response = await http.post(
+      Uri.parse('https://example.com/upload'),
+      body: videoBytes,
+    );
+    if (response.statusCode == 200) {
+      print('Video uploaded successfully!');
+    } else {
+      print('Error uploading video: ${response.statusCode}');
+    }
+  }
 
   void setProgress(double value) async {
     setState(() {
@@ -86,29 +110,7 @@ class _UploadVideoState extends State<UploadVideo> {
               child: Column(
                 children: [
                   const SizedBox(
-                    height: 52,
-                  ),
-                  MaterialButton(
-                    
-                    color: primaryColor,
-                    child: const Text(
-                      "Pick Video from Gallery",
-                      style: TextStyle(
-                          color: Colors.white70, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: () async {
-                      var source = ImageSource.gallery;
-                      XFile? image = await _picker.pickVideo(source: source);
-                      if (image != null) {
-                        setState(() {
-                          try {
-                            _imagePath = image.path;
-                          } catch (e) {
-                            log("Failed to get video: $e");
-                          }
-                        });
-                      }
-                    },
+                    height: 13,
                   ),
                   MaterialButton(
                     color: primaryColor,
@@ -118,8 +120,33 @@ class _UploadVideoState extends State<UploadVideo> {
                           color: Colors.white70, fontWeight: FontWeight.bold),
                     ),
                     onPressed: () async {
-                      _uploadVideo(_videoFile != null ? _videoFile! : File(_imagePath));
+                      final pickedFile = await ImagePicker()
+                          .pickVideo(source: ImageSource.gallery);
+                      if (pickedFile != null) {
+                        _videoFile = File(pickedFile.path);
+                        await _initializeVideoPlayerController();
+                      }
                     },
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      _controller.play();
+                    },
+                    child: Text('Play'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      _controller.pause();
+                    },
+                    child: Text('Pause'),
+                  ),
+                  if (_controller != null)
+                    AspectRatio(
+                      aspectRatio: _controller.value.aspectRatio,
+                      child: VideoPlayer(_controller),
+                    ),
+                  const SizedBox(
+                    height: 11,
                   ),
                   LinearProgressIndicator(
                     color: primaryColor,
